@@ -55,7 +55,3 @@ Build https://github.com/triptu/notes and install it on my Android phone. Follow
 ```
 
 Then, in the app's settings, connect a private GitHub repository. Create token opens GitHub with the permissions filled in. On your computer, install [Gitless Vault Sync](https://community.obsidian.md/plugins/github-vault-sync) in Obsidian and point it at the same repository. To update the app later, ask the agent to pull and build again.
-
-## Credits
-
-Icons are [Phosphor](https://phosphoricons.com/). The typeface is [Inter](https://rsms.me/inter/).
