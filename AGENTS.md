@@ -11,15 +11,20 @@ Notes for Android is a native Android notes app (Kotlin, Compose) that edits an 
 
 ## Build and test
 
+You need the Android SDK (Android Studio's, or `ANDROID_HOME`) with its licenses accepted (`sdkmanager --licenses`), JDK 17 and Node.js. There are no GitHub releases and no release key outside the maintainer's machine, so people install the debug build: the README's agent prompt points here, and `installDebug` on their own phone is the intended path. The app needs Android 12 or newer.
+
 ```sh
-git submodule update --init
+git clone --recursive https://github.com/triptu/notes.git
+cd notes
 npm ci --prefix vault-sync
 cd android && ./gradlew :app:testDebugUnitTest installDebug
 ```
 
-Node must be on `PATH` (or pass `-Pnode=/path/to/node`). Set `ANDROID_SERIAL` when more than one device is attached.
+In an existing clone, `git submodule update --init` fetches `vault-sync`. `installDebug` puts the debug build on the connected phone or emulator (`adb devices` must list it, with USB debugging on). Node must be on `PATH` (or pass `-Pnode=/path/to/node`). Set `ANDROID_SERIAL` when more than one device is attached.
 
-The release app is `io.github.triptu.notes`, built with `./gradlew :app:assembleRelease` and signed with a key configured in `~/.gradle/gradle.properties`. The debug app is `io.github.triptu.notes.debug`.
+The release app is `io.github.triptu.notes`, built with `./gradlew :app:assembleRelease`. It is signed with a key configured in `~/.gradle/gradle.properties` as `NOTES_RELEASE_STORE_FILE`, `NOTES_RELEASE_STORE_PASSWORD` and `NOTES_RELEASE_KEY_ALIAS`. The debug app is `io.github.triptu.notes.debug`.
+
+After installing, the person connects a private GitHub repository in the app's settings with a fine-grained token that can read and write its contents (Create token opens GitHub's form filled in), and installs the Gitless Vault Sync plugin in Obsidian on their computer, pointed at the same repository.
 
 ### Bumping the engine
 
@@ -35,8 +40,9 @@ Then commit the new `vault-sync` pointer.
 
 ## Rules
 
+- The rules in this section are about the maintainer's own phone, when working in the maintainer's checkout. Someone else's agent building the app for its own user installs the debug app on that user's phone as the README says.
 - Test the app on an emulator, not the owner's phone. The phone carries only the release app, which holds the owner's real vault. Don't install the debug app or anything else on the phone, and never open, tap, clear or reconfigure the release app; updating it with `adb install -r` is fine when asked. The phone can show up twice in `adb devices` (by IP and by name); pick one with `ANDROID_SERIAL`.
-- Never connect the debug app to a real vault.
+- In the maintainer's checkout, never connect the debug app to a real vault.
 - Before any `adb shell input` on an emulator, check `mCurrentFocus` is the debug app.
 - Never put the owner's vault name, paths or note content into tracked files.
 
