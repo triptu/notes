@@ -4,7 +4,7 @@ A calm Android app for writing in your Obsidian vault. Notes save on the phone f
 
 [notes.tushar.ai](https://notes.tushar.ai/) · Pairs with the Obsidian plugin [Gitless Vault Sync](https://github.com/triptu/markdown-github-sync) ([vaultsync.tushar.ai](https://vaultsync.tushar.ai/)), so your phone and your computer share one repository.
 
-[![Poster for the film: a phone with a spoken note filling in as the words are said. Click to watch it on notes.tushar.ai.](https://raw.githubusercontent.com/triptu/notes/main/site/poster.jpg)](https://notes.tushar.ai/)
+[![Poster for the film: the note spoken on the phone, open in Obsidian on a Mac beside the words Same vault. On the desk. Click to watch it on notes.tushar.ai.](https://raw.githubusercontent.com/triptu/notes/main/site/notes-trailer-poster.jpg)](https://notes.tushar.ai/)
 
 ## Writing
 
