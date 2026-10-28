@@ -1,6 +1,6 @@
 # Notes for Android
 
-A calm Android app for writing in your Obsidian vault. Notes save on the phone first, then sync to your own private GitHub repository.
+A calm Android app for writing in your Obsidian vault. Notes save on the phone first, then sync to your own GitHub repository.
 
 [notes.tushar.ai](https://notes.tushar.ai/) · Pairs with the Obsidian plugin [Gitless Vault Sync](https://github.com/triptu/markdown-github-sync) ([vaultsync.tushar.ai](https://vaultsync.tushar.ai/)), so your phone and your computer share one repository.
 
@@ -38,4 +38,4 @@ There is no store listing, so a coding agent builds the app for you. It needs An
 Build https://github.com/triptu/notes and install it on my Android phone. Follow the build steps in AGENTS.md in that repo.
 ```
 
-Then, in the app's settings, connect a private GitHub repository. Create token opens GitHub's form with the permissions filled in. Select the repository there, generate the token, and paste it into the app. Edits wait on the phone while you're offline. On your computer, install [Gitless Vault Sync](https://community.obsidian.md/plugins/github-vault-sync) in Obsidian and point it at the same repository. To update the app later, ask the agent to pull and build again.
+Then, in the app's settings, connect a GitHub repository. Create token opens GitHub's form with the permissions filled in. Select the repository there, generate the token, and paste it into the app. Edits wait on the phone while you're offline. On your computer, install [Gitless Vault Sync](https://community.obsidian.md/plugins/github-vault-sync) in Obsidian and point it at the same repository. To update the app later, ask the agent to pull and build again.

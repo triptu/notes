@@ -1,6 +1,6 @@
 # Maintainer guide
 
-Notes for Android is a native Android notes app (Kotlin, Compose) that edits an Obsidian vault and syncs it through a private GitHub repository. It reuses the sync engine of the Obsidian plugin Gitless Vault Sync, so the phone and the plugin commit the same way. This repository, `triptu/notes`, is public. Personal details for the maintainer's own setup (vault names, paths, devices) live in `CLAUDE.local.md`, which git ignores; keep them out of tracked files.
+Notes for Android is a native Android notes app (Kotlin, Compose) that edits an Obsidian vault and syncs it through a GitHub repository. It reuses the sync engine of the Obsidian plugin Gitless Vault Sync, so the phone and the plugin commit the same way. This repository, `triptu/notes`, is public. Personal details for the maintainer's own setup (vault names, paths, devices) live in `CLAUDE.local.md`, which git ignores; keep them out of tracked files.
 
 ## Layout
 
@@ -24,7 +24,7 @@ In an existing clone, `git submodule update --init` fetches `vault-sync`. `insta
 
 The release app is `io.github.triptu.notes`, built with `./gradlew :app:assembleRelease`. It is signed with a key configured in `~/.gradle/gradle.properties` as `NOTES_RELEASE_STORE_FILE`, `NOTES_RELEASE_STORE_PASSWORD` and `NOTES_RELEASE_KEY_ALIAS`. The debug app is `io.github.triptu.notes.debug`.
 
-After installing, the person connects a private GitHub repository in the app's settings with a fine-grained token that can read and write its contents (Create token opens GitHub's form filled in), and installs the Gitless Vault Sync plugin in Obsidian on their computer, pointed at the same repository.
+After installing, the person connects a GitHub repository in the app's settings with a fine-grained token that can read and write its contents (Create token opens GitHub's form filled in), and installs the Gitless Vault Sync plugin in Obsidian on their computer, pointed at the same repository.
 
 ### Bumping the engine
 

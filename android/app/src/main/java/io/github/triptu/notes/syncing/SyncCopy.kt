@@ -6,7 +6,7 @@ import io.github.triptu.notes.sync.EnrollmentPreview
 /** Every sentence the app shows about GitHub sync, in one place. Short and plain, no codes. */
 object SyncCopy {
     const val Section = "GitHub sync"
-    const val Intro = "Keep these notes in a private GitHub repository, the one your Obsidian vault syncs with."
+    const val Intro = "Keep these notes in a GitHub repository, the one your Obsidian vault syncs with."
     const val SetupTitle = "Sync with GitHub"
     const val Repository = "Repository"
     const val RepositoryPlaceholder = "owner/name"
