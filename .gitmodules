@@ -1,0 +1,3 @@
+[submodule "vault-sync"]
+	path = vault-sync
+	url = https://github.com/triptu/markdown-github-sync.git

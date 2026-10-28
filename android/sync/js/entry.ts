@@ -4,17 +4,17 @@
 // `{ ok: result }` or `{ error: { category, message, status?, retryAt? } }`.
 import "./polyfills";
 import { exact, host } from "./host";
-import { GitHubRepository } from "../../../plugin/src/git-sync/github";
-import type { GitHubTransport } from "../../../plugin/src/git-sync/github";
-import { SyncSession } from "../../../plugin/src/git-sync/session";
-import type { ChoiceInput, SessionStatus, SyncOutcome } from "../../../plugin/src/git-sync/session";
-import { FileJournalStore } from "../../../plugin/src/git-sync/store";
-import type { JournalFiles } from "../../../plugin/src/git-sync/store";
-import { dictionary, encodeBase64, entryText, isValidPath, trustVerifiedEntry, withMode, yieldToHost } from "../../../plugin/src/git-sync/codec";
-import type { ApplyResult, Entry, FileMode, LocalVault, Snapshot, UnreadableFile } from "../../../plugin/src/git-sync/contracts";
-import type { Conflict } from "../../../plugin/src/git-sync/reconcile";
-import type { Scope } from "../../../plugin/src/git-sync/scope";
-import { accessProblem, failure, offline, outcomeAttention, rejectedAccess } from "../../../plugin/src/ui/copy";
+import { GitHubRepository } from "../../../vault-sync/plugin/src/git-sync/github";
+import type { GitHubTransport } from "../../../vault-sync/plugin/src/git-sync/github";
+import { SyncSession } from "../../../vault-sync/plugin/src/git-sync/session";
+import type { ChoiceInput, SessionStatus, SyncOutcome } from "../../../vault-sync/plugin/src/git-sync/session";
+import { FileJournalStore } from "../../../vault-sync/plugin/src/git-sync/store";
+import type { JournalFiles } from "../../../vault-sync/plugin/src/git-sync/store";
+import { dictionary, encodeBase64, entryText, isValidPath, trustVerifiedEntry, withMode, yieldToHost } from "../../../vault-sync/plugin/src/git-sync/codec";
+import type { ApplyResult, Entry, FileMode, LocalVault, Snapshot, UnreadableFile } from "../../../vault-sync/plugin/src/git-sync/contracts";
+import type { Conflict } from "../../../vault-sync/plugin/src/git-sync/reconcile";
+import type { Scope } from "../../../vault-sync/plugin/src/git-sync/scope";
+import { accessProblem, failure, offline, outcomeAttention, rejectedAccess } from "../../../vault-sync/plugin/src/ui/copy";
 
 /**
  * The app keeps no Obsidian settings. A configuration directory no vault uses

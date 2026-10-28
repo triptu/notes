@@ -4,9 +4,10 @@ plugins {
     alias(libs.plugins.android.library)
 }
 
-// The sync engine is the plugin's TypeScript in plugin/src/git-sync, bundled
-// with esbuild for QuickJS. Node must be on PATH (or pass -Pnode=/path/to/node).
-val engineSources = rootProject.layout.projectDirectory.dir("../plugin/src")
+// The sync engine is the plugin's TypeScript in vault-sync/plugin/src/git-sync,
+// a git submodule, bundled with esbuild for QuickJS. Node must be on PATH (or
+// pass -Pnode=/path/to/node).
+val engineSources = rootProject.layout.projectDirectory.dir("../vault-sync/plugin/src")
 val bundleScript = layout.projectDirectory.file("js/build.mjs")
 val bundleDir = layout.buildDirectory.dir("generated/syncEngine")
 val bundleFile = bundleDir.map { it.file("sync-engine.js") }
