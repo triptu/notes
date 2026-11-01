@@ -221,10 +221,7 @@ fun EditorScreen(
             exit = fadeOut(tween(90)),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            // Lines scrolling under the buttons fade out, as they do under the top edge.
-            Box(Modifier.fillMaxWidth().background(Brush.verticalGradient(0f to Color.Transparent, 0.35f to colors.bg)), contentAlignment = Alignment.Center) {
-                TypingButtons(session, speech, Modifier.widthIn(max = ReadingWidth))
-            }
+            TypingButtons(session, speech, Modifier.widthIn(max = ReadingWidth))
         }
         if (speech != null) {
             AnimatedVisibility(
@@ -277,7 +274,7 @@ private class KeepClearBringIntoView(private val topMargin: Float, private val b
     }
 }
 
-/** Buttons for what the keyboard can't do: speak, outdent, indent, checkbox, and undo at the far end. */
+/** Buttons for what the keyboard can't do: speak, outdent, indent, checkbox, and undo and redo at the far end. */
 @Composable
 private fun TypingButtons(session: EditorSession, onSpeak: (() -> Unit)?, modifier: Modifier = Modifier) {
     Row(
@@ -289,24 +286,24 @@ private fun TypingButtons(session: EditorSession, onSpeak: (() -> Unit)?, modifi
         RoundButton(R.drawable.ph_text_indent, "Indent", session::indent)
         RoundButton(R.drawable.ph_check_square, "Checkbox", session::toggleChecklist)
         Spacer(Modifier.weight(1f))
-        if (session.canUndo || session.canRedo) {
-            RoundButton(R.drawable.ph_arrow_u_up_left, "Undo, long-press to redo", session::undo, onLongClick = session::redo, dim = !session.canUndo)
-        }
+        if (session.canUndo) RoundButton(R.drawable.ph_arrow_u_up_left, "Undo", session::undo)
+        if (session.canRedo) RoundButton(R.drawable.ph_arrow_u_up_right, "Redo", session::redo)
     }
 }
 
 @Composable
-private fun RoundButton(icon: Int, label: String, onClick: () -> Unit, onLongClick: (() -> Unit)? = null, dim: Boolean = false) {
+private fun RoundButton(icon: Int, label: String, onClick: () -> Unit) {
     val colors = NotesTheme.colors
     Box(
         Modifier
             .size(RowButtonSize)
             .clip(CircleShape)
-            .background(colors.raised)
-            .pressable(onClick, onLongClick, shape = CircleShape, bleed = 0.dp, label = label, pressColor = colors.sunk),
+            // Translucent, so the note shows through faintly as it scrolls under the row.
+            .background(colors.raised.copy(alpha = 0.72f))
+            .pressable(onClick, shape = CircleShape, bleed = 0.dp, label = label, pressColor = colors.sunk.copy(alpha = 0.85f)),
         contentAlignment = Alignment.Center,
     ) {
-        PhIcon(icon, label, 20.dp, if (dim) colors.muted else colors.ink2)
+        PhIcon(icon, label, 20.dp, colors.ink2)
     }
 }
 
@@ -342,7 +339,6 @@ private fun TopBar(session: EditorSession, isPinned: Boolean, list: ListToggle?,
                 style = NotesType.path, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
-        UndoButton(session)
         Box {
             IconButton48(R.drawable.ph_dots_three_vertical, "More", { menu = true })
             DropdownMenu(menu, { menu = false }, containerColor = colors.raised, shape = RoundedCornerShape(14.dp)) {
@@ -354,35 +350,6 @@ private fun TopBar(session: EditorSession, isPinned: Boolean, list: ListToggle?,
                     onDelete()
                 }
             }
-        }
-    }
-}
-
-/** Undo, with redo on long-press. Its slot is always there so the bar never shifts. */
-@Composable
-private fun UndoButton(session: EditorSession) {
-    val colors = NotesTheme.colors
-    val visible = session.canUndo || session.canRedo
-    Box(
-        Modifier
-            .size(48.dp)
-            .then(
-                if (visible) {
-                    Modifier.pressable(
-                        onClick = session::undo,
-                        onLongClick = session::redo,
-                        shape = CircleShape,
-                        bleed = 0.dp,
-                        label = "Undo",
-                    )
-                } else {
-                    Modifier
-                },
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (visible) {
-            PhIcon(R.drawable.ph_arrow_u_up_left, "Undo, long-press to redo", 22.dp, if (session.canUndo) colors.ink2 else colors.muted)
         }
     }
 }

@@ -76,9 +76,9 @@ class LivePreview(
             paragraph(hangingIndent(lineStart, t.markerEnd), lineStart, t.lineEnd)
         }
         for (bullet in parsed.bullets) {
-            if (!touches(bullet.index, bullet.index + 1)) chars[bullet.index] = '•'
-            span(SpanStyle(color = colors.muted), bullet.index, bullet.index + 1)
             val lineStart = lineStartOf(raw, bullet.index)
+            if (!touches(bullet.index, bullet.index + 1)) chars[bullet.index] = BulletShapes[nesting(raw, lineStart, bullet.index) % BulletShapes.size]
+            span(SpanStyle(color = colors.muted), bullet.index, bullet.index + 1)
             paragraph(hangingIndent(lineStart, (bullet.index + 2).coerceAtMost(bullet.lineEnd)), lineStart, bullet.lineEnd)
         }
         for (n in parsed.numbers) {
@@ -150,6 +150,14 @@ class LivePreview(
 
     private fun lineStartOf(text: String, index: Int) = text.lastIndexOf('\n', index - 1) + 1
 
+    /** How deep a list line is nested: one level per tab, or per two spaces. */
+    private fun nesting(text: String, lineStart: Int, markerStart: Int): Int {
+        var tabs = 0
+        var spaces = 0
+        for (i in lineStart until markerStart) if (text[i] == '\t') tabs++ else spaces++
+        return tabs + spaces / 2
+    }
+
     /** True if the cursor or selection touches [start]..[end], edges included. */
     private fun touches(start: Int, end: Int): Boolean = focused && selection.min <= end && selection.max >= start
 
@@ -164,6 +172,9 @@ class LivePreview(
         private val Hidden = SpanStyle(color = Color.Transparent, fontSize = 1.sp, letterSpacing = 0.sp)
         private const val ZeroWidthSpace = '\u200B'
         private const val EmSpace = '\u2003'
+
+        /** Like Notion: a dot, then a ring one level in, then a square, then round again. */
+        private val BulletShapes = charArrayOf('•', '◦', '▪')
 
         /** The body's line height, which an embed's line keeps above its picture. */
         const val LineSp = 26f
