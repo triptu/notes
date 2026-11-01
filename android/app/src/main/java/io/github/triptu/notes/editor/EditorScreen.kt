@@ -80,6 +80,8 @@ import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.relocation.BringIntoViewModifierNode
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
@@ -169,6 +171,7 @@ fun EditorScreen(
         val bottom = with(density) {
             when {
                 linking -> (LinkSuggestionsHeight + 8.dp).toPx()
+                typing -> (RowButtonSize + RowMargin * 2).toPx()
                 speech != null -> (MicSize + MicMargin * 2).toPx()
                 else -> 0f
             }
@@ -211,9 +214,21 @@ fun EditorScreen(
         ) {
             TopBar(session, isPinned, list, onBack, onTogglePin, onDelete)
         }
+        // While typing, the mic joins a row of buttons above the keyboard.
+        AnimatedVisibility(
+            visible = typing && !linking,
+            enter = fadeIn(tween(120)),
+            exit = fadeOut(tween(90)),
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            // Lines scrolling under the buttons fade out, as they do under the top edge.
+            Box(Modifier.fillMaxWidth().background(Brush.verticalGradient(0f to Color.Transparent, 0.35f to colors.bg)), contentAlignment = Alignment.Center) {
+                TypingButtons(session, speech, Modifier.widthIn(max = ReadingWidth))
+            }
+        }
         if (speech != null) {
             AnimatedVisibility(
-                visible = !linking,
+                visible = !linking && !typing,
                 enter = fadeIn(tween(120)),
                 exit = fadeOut(tween(90)),
                 modifier = Modifier.align(Alignment.BottomEnd),
@@ -242,6 +257,8 @@ private val TopBarHeight = 48.dp
 private val TopFade = 24.dp
 private val MicSize = 56.dp
 private val MicMargin = 16.dp
+private val RowButtonSize = 44.dp
+private val RowMargin = 8.dp
 
 /** Scrolls just enough to show the cursor, keeping [topMargin] and [bottomMargin] px clear. */
 @OptIn(ExperimentalFoundationApi::class)
@@ -257,6 +274,39 @@ private class KeepClearBringIntoView(private val topMargin: Float, private val b
             below > 0f -> below
             else -> 0f
         }
+    }
+}
+
+/** Buttons for what the keyboard can't do: speak, outdent, indent, checkbox, and undo at the far end. */
+@Composable
+private fun TypingButtons(session: EditorSession, onSpeak: (() -> Unit)?, modifier: Modifier = Modifier) {
+    Row(
+        modifier.fillMaxWidth().padding(horizontal = PagePadding - 4.dp, vertical = RowMargin),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        if (onSpeak != null) RoundButton(R.drawable.ph_microphone, "Speak", onSpeak)
+        RoundButton(R.drawable.ph_text_outdent, "Outdent", session::outdent)
+        RoundButton(R.drawable.ph_text_indent, "Indent", session::indent)
+        RoundButton(R.drawable.ph_check_square, "Checkbox", session::toggleChecklist)
+        Spacer(Modifier.weight(1f))
+        if (session.canUndo || session.canRedo) {
+            RoundButton(R.drawable.ph_arrow_u_up_left, "Undo, long-press to redo", session::undo, onLongClick = session::redo, dim = !session.canUndo)
+        }
+    }
+}
+
+@Composable
+private fun RoundButton(icon: Int, label: String, onClick: () -> Unit, onLongClick: (() -> Unit)? = null, dim: Boolean = false) {
+    val colors = NotesTheme.colors
+    Box(
+        Modifier
+            .size(RowButtonSize)
+            .clip(CircleShape)
+            .background(colors.raised)
+            .pressable(onClick, onLongClick, shape = CircleShape, bleed = 0.dp, label = label, pressColor = colors.sunk),
+        contentAlignment = Alignment.Center,
+    ) {
+        PhIcon(icon, label, 20.dp, if (dim) colors.muted else colors.ink2)
     }
 }
 
@@ -388,6 +438,8 @@ private fun Body(session: EditorSession, focus: FocusRequester, onOpenLink: (Str
     val current by rememberUpdatedState(session.value)
     val parsed by rememberUpdatedState(session.parsed)
     val openLink by rememberUpdatedState(onOpenLink)
+    val uriHandler = LocalUriHandler.current
+    val keyboard = LocalSoftwareKeyboardController.current
     val boxSide = with(density) { TaskBoxSize.toPx() }
     val slop = with(density) { 14.dp.toPx() }
     val xHeightCenter = with(density) { 6.sp.toPx() }
@@ -476,7 +528,7 @@ private fun Body(session: EditorSession, focus: FocusRequester, onOpenLink: (Str
     ) {
     BasicTextField(
         value = session.value,
-        onValueChange = { session.onValueChange(it) },
+        onValueChange = session::onTyped,
         textStyle = NotesType.noteBody.copy(color = colors.ink),
         cursorBrush = SolidColor(colors.ink),
         visualTransformation = LivePreview(session.parsed, session.value.selection, focused, colors, indentOf, imageSpace),
@@ -501,16 +553,32 @@ private fun Body(session: EditorSession, focus: FocusRequester, onOpenLink: (Str
                         p.x in (tl.x - slop)..(tl.x + boxSide + slop) && p.y in (tl.y - slop)..(tl.y + boxSide + slop)
                     }
                     val offset = l.getOffsetForPosition(p)
-                    val link = if (task == null) parsed.links.firstOrNull { k ->
-                        offset in k.labelStart until k.labelEnd && !(focused && current.selection.min <= k.end && current.selection.max >= k.start)
-                    } else null
-                    if (task == null && link == null) return@awaitEachGesture
+                    fun editing(start: Int, end: Int) = focused && current.selection.min <= end && current.selection.max >= start
+                    val link = if (task == null) parsed.links.firstOrNull { k -> offset in k.labelStart until k.labelEnd && !editing(k.start, k.end) } else null
+                    val url = if (task == null && link == null) parsed.urls.firstOrNull { u -> offset in u.labelStart until u.labelEnd && !editing(u.start, u.end) } else null
+                    if (task == null && link == null && url == null) {
+                        // Past the end of a line, the field's own tap puts the cursor at the line's
+                        // start (its line break is drawn as a zero-width space). Put it at the end.
+                        val line = l.getLineForVerticalPosition(p.y)
+                        if (p.x <= l.getLineRight(line) + slop) return@awaitEachGesture
+                        val up = waitForUpOrCancellation(PointerEventPass.Initial) ?: return@awaitEachGesture
+                        if ((up.position - p).getDistance() > slop) return@awaitEachGesture
+                        up.consume()
+                        val raw = current.text
+                        val start = l.getLineStart(line).coerceAtMost(raw.length)
+                        val end = minOf(l.getLineEnd(line, visibleEnd = true), raw.indexOf('\n', start).let { if (it < 0) raw.length else it })
+                        session.onValueChange(current.copy(selection = TextRange(end)))
+                        focus.requestFocus()
+                        keyboard?.show()
+                        return@awaitEachGesture
+                    }
                     down.consume()
                     val up = waitForUpOrCancellation(PointerEventPass.Initial) ?: return@awaitEachGesture
                     up.consume()
                     when {
                         task != null -> session.toggleTask(task)
                         link != null -> openLink(link.target)
+                        url != null -> runCatching { uriHandler.openUri(url.url) }
                     }
                 }
             }

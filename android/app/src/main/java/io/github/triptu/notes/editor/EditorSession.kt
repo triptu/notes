@@ -220,6 +220,20 @@ class EditorSession(
         return null
     }
 
+    /** An edit from the keyboard, with the markdown niceties applied (see [MarkdownTyping]). */
+    fun onTyped(typed: TextFieldValue) {
+        // Links open on the `[[` as typed, before its `]]` is added.
+        val link = EditOps.trackLink(value, typed, linkStart)
+        onValueChange(MarkdownTyping.afterEdit(value, typed))
+        linkStart = link
+    }
+
+    fun indent() = onValueChange(MarkdownTyping.indent(value), newUndoStep = true)
+
+    fun outdent() = onValueChange(MarkdownTyping.outdent(value), newUndoStep = true)
+
+    fun toggleChecklist() = onValueChange(MarkdownTyping.toggleChecklist(value), newUndoStep = true)
+
     fun onValueChange(next: TextFieldValue, newUndoStep: Boolean = false) {
         val textChanged = next.text != value.text
         linkStart = EditOps.trackLink(value, next, linkStart)
