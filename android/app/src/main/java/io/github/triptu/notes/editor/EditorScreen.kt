@@ -281,20 +281,22 @@ private class KeepClearBringIntoView(private val topMargin: Float, private val b
     }
 }
 
-/** Buttons for what the keyboard can't do: speak, outdent, indent, checkbox, and undo and redo at the far end. */
+/**
+ * Buttons for what the keyboard can't do, kept to the right so they never cover where lines start:
+ * undo and redo when there's something to undo or redo, then outdent, indent, checkbox, and speak.
+ */
 @Composable
 private fun TypingButtons(session: EditorSession, onSpeak: (() -> Unit)?, haze: HazeState, modifier: Modifier = Modifier) {
     Row(
         modifier.fillMaxWidth().padding(horizontal = PagePadding - 4.dp, vertical = RowMargin),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
     ) {
-        if (onSpeak != null) RoundButton(R.drawable.ph_microphone, "Speak", haze, onSpeak)
+        if (session.canUndo) RoundButton(R.drawable.ph_arrow_u_up_left, "Undo", haze, session::undo)
+        if (session.canRedo) RoundButton(R.drawable.ph_arrow_u_up_right, "Redo", haze, session::redo)
         RoundButton(R.drawable.ph_text_outdent, "Outdent", haze, session::outdent)
         RoundButton(R.drawable.ph_text_indent, "Indent", haze, session::indent)
         RoundButton(R.drawable.ph_check_square, "Checkbox", haze, session::toggleChecklist)
-        Spacer(Modifier.weight(1f))
-        if (session.canUndo) RoundButton(R.drawable.ph_arrow_u_up_left, "Undo", haze, session::undo)
-        if (session.canRedo) RoundButton(R.drawable.ph_arrow_u_up_right, "Redo", haze, session::redo)
+        if (onSpeak != null) RoundButton(R.drawable.ph_microphone, "Speak", haze, onSpeak)
     }
 }
 
