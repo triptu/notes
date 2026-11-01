@@ -13,6 +13,12 @@ data class HeadingMark(val lineStart: Int, val lineEnd: Int, val level: Int, val
 
 data class BulletMark(val index: Int, val lineEnd: Int)
 
+/** A `1. ` item: [start] is its first digit, [markerEnd] just after the space. */
+data class NumberMark(val start: Int, val markerEnd: Int, val lineEnd: Int)
+
+/** A web link, `[label](url)` or a bare URL. [labelStart] to [labelEnd] is the text shown. */
+data class UrlMark(val start: Int, val end: Int, val labelStart: Int, val labelEnd: Int, val url: String)
+
 enum class InlineKind { Bold, Italic, BoldItalic, Code }
 
 /** Inline emphasis: [start] to [end] includes the markers, which are [marker] characters long on each side. */
@@ -32,6 +38,8 @@ data class ParsedMarkdown(
     val conflictMarkers: List<LineRange> = emptyList(),
     /** `![](path)` and `![[file]]` embeds, drawn below their line. */
     val images: List<ImageMark> = emptyList(),
+    val numbers: List<NumberMark> = emptyList(),
+    val urls: List<UrlMark> = emptyList(),
 )
 
 /** An embedded image: [lineStart]..[lineEnd] is its line, [target] the path or name as written. */
@@ -42,6 +50,7 @@ object MarkdownParser {
     private val Heading = Regex("""^(#{1,6}) """)
     private val Task = Regex("""^(\s*)[-*+] \[([ xX])\](?: |$)""")
     private val Bullet = Regex("""^(\s*)[-*+] """)
+    private val Numbered = Regex("""^(\s*)\d{1,9}[.)] """)
     private val Quote = Regex("""^\s*> ?""")
     private val Image = Regex("""!\[\[([^\[\]\n]+?)]]|!\[[^\]\n]*]\(([^)\n]+)\)""")
     private val ImageExtensions = setOf("png", "jpg", "jpeg", "gif", "webp", "bmp", "heic", "heif", "avif", "svg")
@@ -52,6 +61,9 @@ object MarkdownParser {
     fun isImage(target: String): Boolean = target.substringAfterLast('.', "").lowercase() in ImageExtensions
 
     private val Link = Regex("""\[\[([^\[\]\n]+?)]]""")
+    // The address may hold one level of balanced parentheses, as Wikipedia links do.
+    private val MarkdownLink = Regex("""(?<!!)\[([^\[\]\n]+)]\(((?:[^()\s]|\([^()\s]*\))+)\)""")
+    private val BareUrl = Regex("""https?://[^\s<>()\[\]]+[^\s<>()\[\].,;:!?'"*_]""")
     private val Code = Regex("""`[^`\n]+`""")
     private val BoldItalic = Regex("""(?<![*\\])\*\*\*(?=\S)(.+?)(?<=\S)\*\*\*(?!\*)""")
     private val Bold = Regex("""(?<![*\\])\*\*(?=[^\s*])(.+?)(?<=[^\s*])\*\*(?!\*)|(?<![_\w])__(?=\S)(.+?)(?<=\S)__(?![_\w])""")
@@ -61,6 +73,8 @@ object MarkdownParser {
         val headings = ArrayList<HeadingMark>()
         val tasks = ArrayList<TaskMark>()
         val bullets = ArrayList<BulletMark>()
+        val numbers = ArrayList<NumberMark>()
+        val urls = ArrayList<UrlMark>()
         val links = ArrayList<LinkMark>()
         val inline = ArrayList<InlineMark>()
         val quotes = ArrayList<LineRange>()
@@ -79,8 +93,8 @@ object MarkdownParser {
             } else if (!inFence && isConflictMarker(line)) {
                 markers += LineRange(lineStart, lineEnd)
             } else if (!inFence) {
-                parseLine(line, lineStart, lineEnd, headings, tasks, bullets, quotes)
-                parseInline(line, lineStart, links, inline)
+                parseLine(line, lineStart, lineEnd, headings, tasks, bullets, numbers, quotes)
+                parseInline(line, lineStart, links, urls, inline)
                 for (m in Image.findAll(line)) {
                     val wiki = m.groupValues[1].isNotEmpty()
                     val raw = if (wiki) m.groupValues[1].substringBefore('|') else m.groupValues[2].trim().removePrefix("<").substringBefore('>').substringBefore(" \"")
@@ -91,7 +105,7 @@ object MarkdownParser {
             if (newline < 0) break
             lineStart = newline + 1
         }
-        return ParsedMarkdown(headings, tasks, bullets, links, inline, quotes, frontmatter, markers, images)
+        return ParsedMarkdown(headings, tasks, bullets, links, inline, quotes, frontmatter, markers, images, numbers, urls)
     }
 
     private fun frontmatterRange(text: String): LineRange? {
@@ -105,7 +119,8 @@ object MarkdownParser {
 
     private fun parseLine(
         line: String, start: Int, end: Int,
-        headings: MutableList<HeadingMark>, tasks: MutableList<TaskMark>, bullets: MutableList<BulletMark>, quotes: MutableList<LineRange>,
+        headings: MutableList<HeadingMark>, tasks: MutableList<TaskMark>, bullets: MutableList<BulletMark>,
+        numbers: MutableList<NumberMark>, quotes: MutableList<LineRange>,
     ) {
         Heading.find(line)?.let {
             headings += HeadingMark(start, end, it.groupValues[1].length, start + it.range.last + 1)
@@ -120,10 +135,14 @@ object MarkdownParser {
             bullets += BulletMark(start + it.groupValues[1].length, end)
             return
         }
+        Numbered.find(line)?.let {
+            numbers += NumberMark(start + it.groupValues[1].length, start + it.range.last + 1, end)
+            return
+        }
         if (Quote.containsMatchIn(line)) quotes += LineRange(start, end)
     }
 
-    private fun parseInline(line: String, offset: Int, links: MutableList<LinkMark>, inline: MutableList<InlineMark>) {
+    private fun parseInline(line: String, offset: Int, links: MutableList<LinkMark>, urls: MutableList<UrlMark>, inline: MutableList<InlineMark>) {
         val taken = ArrayList<IntRange>()
         fun free(range: IntRange) = taken.none { it.first <= range.last && range.first <= it.last }
 
@@ -141,6 +160,19 @@ object MarkdownParser {
             val labelStart = if (pipe >= 0) innerStart + pipe + 1 else innerStart
             val target = if (pipe >= 0) inner.substring(0, pipe) else inner
             links += LinkMark(offset + m.range.first, offset + m.range.last + 1, labelStart, offset + m.range.last - 1, target.trim())
+        }
+        // A picture's address isn't a link to tap.
+        for (m in Image.findAll(line)) taken += m.range
+        for (m in MarkdownLink.findAll(line)) {
+            if (!free(m.range)) continue
+            taken += m.range
+            val labelStart = offset + m.range.first + 1
+            urls += UrlMark(offset + m.range.first, offset + m.range.last + 1, labelStart, labelStart + m.groupValues[1].length, m.groupValues[2])
+        }
+        for (m in BareUrl.findAll(line)) {
+            if (!free(m.range)) continue
+            taken += m.range
+            urls += UrlMark(offset + m.range.first, offset + m.range.last + 1, offset + m.range.first, offset + m.range.last + 1, m.value)
         }
         for ((regex, kind, marker) in listOf(Triple(BoldItalic, InlineKind.BoldItalic, 3), Triple(Bold, InlineKind.Bold, 2), Triple(Italic, InlineKind.Italic, 1))) {
             for (m in regex.findAll(line)) {

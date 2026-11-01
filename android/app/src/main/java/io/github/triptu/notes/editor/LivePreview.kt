@@ -49,8 +49,11 @@ class LivePreview(
         fun hide(start: Int, end: Int) = span(Hidden, start, end)
         val paragraphs = ArrayList<Triple<ParagraphStyle, Int, Int>>()
         fun paragraph(style: ParagraphStyle, lineStart: Int, lineEnd: Int) = paragraphs.add(Triple(style, lineStart, lineEnd))
-        fun hangingIndent(lineStart: Int, textStart: Int) =
-            ParagraphStyle(textIndent = TextIndent(restLine = measure(String(chars, lineStart, textStart - lineStart))))
+        fun hangingIndent(lineStart: Int, textStart: Int): ParagraphStyle {
+            // A tab draws about a space wide; an em space shows a clear level of nesting.
+            for (i in lineStart until textStart) if (chars[i] == '\t') chars[i] = EmSpace
+            return ParagraphStyle(textIndent = TextIndent(restLine = measure(String(chars, lineStart, textStart - lineStart))))
+        }
 
         parsed.frontmatter?.let { span(SpanStyle(color = colors.muted, fontSize = 14.sp), it.start, it.end) }
 
@@ -77,6 +80,11 @@ class LivePreview(
             span(SpanStyle(color = colors.muted), bullet.index, bullet.index + 1)
             val lineStart = lineStartOf(raw, bullet.index)
             paragraph(hangingIndent(lineStart, (bullet.index + 2).coerceAtMost(bullet.lineEnd)), lineStart, bullet.lineEnd)
+        }
+        for (n in parsed.numbers) {
+            span(SpanStyle(color = colors.muted), n.start, n.markerEnd)
+            val lineStart = lineStartOf(raw, n.start)
+            paragraph(hangingIndent(lineStart, n.markerEnd), lineStart, n.lineEnd)
         }
         for (m in parsed.conflictMarkers) span(SpanStyle(color = colors.muted, fontSize = 14.sp), m.start, m.end)
         val taken = paragraphs.map { it.second }.toSet()
@@ -119,6 +127,16 @@ class LivePreview(
                 hide(l.labelEnd, l.end)
             }
         }
+        for (u in parsed.urls) {
+            span(SpanStyle(textDecoration = TextDecoration.Underline), u.labelStart, u.labelEnd)
+            if (touches(u.start, u.end)) {
+                span(SpanStyle(color = colors.muted), u.start, u.labelStart)
+                span(SpanStyle(color = colors.muted), u.labelEnd, u.end)
+            } else {
+                hide(u.start, u.labelStart)
+                hide(u.labelEnd, u.end)
+            }
+        }
 
         for ((_, lineStart, lineEnd) in paragraphs) {
             if (lineEnd < chars.size) chars[lineEnd] = ZeroWidthSpace
@@ -145,6 +163,7 @@ class LivePreview(
     companion object {
         private val Hidden = SpanStyle(color = Color.Transparent, fontSize = 1.sp, letterSpacing = 0.sp)
         private const val ZeroWidthSpace = '\u200B'
+        private const val EmSpace = '\u2003'
 
         /** The body's line height, which an embed's line keeps above its picture. */
         const val LineSp = 26f

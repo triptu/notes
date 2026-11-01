@@ -25,4 +25,17 @@ class MarkdownParserTest {
         assertEquals(listOf("<<<<<<< This phone", "=======", ">>>>>>> GitHub"), parsed.conflictMarkers.map { text.substring(it.start, it.end) })
         assertTrue(parsed.quotes.isEmpty())
     }
+
+    @Test
+    fun `web links show their label, keep balanced parentheses, and bare URLs drop trailing punctuation`() {
+        val text = "see [wiki](https://en.wikipedia.org/wiki/Foo_(bar)) or https://example.com/a."
+        val urls = MarkdownParser.parse(text).urls
+        assertEquals(listOf("https://en.wikipedia.org/wiki/Foo_(bar)", "https://example.com/a"), urls.map { it.url })
+        assertEquals("wiki", text.substring(urls[0].labelStart, urls[0].labelEnd))
+    }
+
+    @Test
+    fun `numbered items are list items`() {
+        assertEquals(1, MarkdownParser.parse("1. one\nnot 2. two").numbers.size)
+    }
 }
