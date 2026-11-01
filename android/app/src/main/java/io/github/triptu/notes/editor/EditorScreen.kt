@@ -15,6 +15,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
+import io.github.triptu.notes.ui.glass
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -150,6 +155,8 @@ fun EditorScreen(
     LaunchedEffect(session.keyboardRequests) { if (session.keyboardRequests > 0) bodyFocus.requestFocus() }
 
     val scroll = rememberScrollState()
+    // The note, blurred behind the floating typing buttons.
+    val haze = rememberHazeState()
 
     // Back closes the link suggestions before it closes the note.
     BackHandler(enabled = session.linkStart != null) { session.dismissLink() }
@@ -180,7 +187,7 @@ fun EditorScreen(
         val defaultSpec = LocalBringIntoViewSpec.current
         CompositionLocalProvider(LocalBringIntoViewSpec provides keepClear) {
             Column(
-                Modifier.fillMaxSize().verticalScroll(scroll).padding(top = TopBarHeight),
+                Modifier.fillMaxSize().hazeSource(haze).verticalScroll(scroll).padding(top = TopBarHeight),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 // Only the page keeps clear. The text field's own scroller can't move, so it would
@@ -221,7 +228,7 @@ fun EditorScreen(
             exit = fadeOut(tween(90)),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            TypingButtons(session, speech, Modifier.widthIn(max = ReadingWidth))
+            TypingButtons(session, speech, haze, Modifier.widthIn(max = ReadingWidth))
         }
         if (speech != null) {
             AnimatedVisibility(
@@ -276,31 +283,30 @@ private class KeepClearBringIntoView(private val topMargin: Float, private val b
 
 /** Buttons for what the keyboard can't do: speak, outdent, indent, checkbox, and undo and redo at the far end. */
 @Composable
-private fun TypingButtons(session: EditorSession, onSpeak: (() -> Unit)?, modifier: Modifier = Modifier) {
+private fun TypingButtons(session: EditorSession, onSpeak: (() -> Unit)?, haze: HazeState, modifier: Modifier = Modifier) {
     Row(
         modifier.fillMaxWidth().padding(horizontal = PagePadding - 4.dp, vertical = RowMargin),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (onSpeak != null) RoundButton(R.drawable.ph_microphone, "Speak", onSpeak)
-        RoundButton(R.drawable.ph_text_outdent, "Outdent", session::outdent)
-        RoundButton(R.drawable.ph_text_indent, "Indent", session::indent)
-        RoundButton(R.drawable.ph_check_square, "Checkbox", session::toggleChecklist)
+        if (onSpeak != null) RoundButton(R.drawable.ph_microphone, "Speak", haze, onSpeak)
+        RoundButton(R.drawable.ph_text_outdent, "Outdent", haze, session::outdent)
+        RoundButton(R.drawable.ph_text_indent, "Indent", haze, session::indent)
+        RoundButton(R.drawable.ph_check_square, "Checkbox", haze, session::toggleChecklist)
         Spacer(Modifier.weight(1f))
-        if (session.canUndo) RoundButton(R.drawable.ph_arrow_u_up_left, "Undo", session::undo)
-        if (session.canRedo) RoundButton(R.drawable.ph_arrow_u_up_right, "Redo", session::redo)
+        if (session.canUndo) RoundButton(R.drawable.ph_arrow_u_up_left, "Undo", haze, session::undo)
+        if (session.canRedo) RoundButton(R.drawable.ph_arrow_u_up_right, "Redo", haze, session::redo)
     }
 }
 
 @Composable
-private fun RoundButton(icon: Int, label: String, onClick: () -> Unit) {
+private fun RoundButton(icon: Int, label: String, haze: HazeState, onClick: () -> Unit) {
     val colors = NotesTheme.colors
     Box(
         Modifier
             .size(RowButtonSize)
-            .clip(CircleShape)
-            // Translucent, so the note shows through faintly as it scrolls under the row.
-            .background(colors.raised.copy(alpha = 0.72f))
-            .pressable(onClick, shape = CircleShape, bleed = 0.dp, label = label, pressColor = colors.sunk.copy(alpha = 0.85f)),
+            .shadow(6.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.18f), spotColor = Color.Black.copy(alpha = 0.18f))
+            .glass(haze, CircleShape)
+            .pressable(onClick, shape = CircleShape, bleed = 0.dp, label = label, pressColor = colors.sunk.copy(alpha = 0.6f)),
         contentAlignment = Alignment.Center,
     ) {
         PhIcon(icon, label, 20.dp, colors.ink2)

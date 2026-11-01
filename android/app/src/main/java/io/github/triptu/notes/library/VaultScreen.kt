@@ -6,18 +6,13 @@ import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.gestures.scrollBy
-import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.blur.HazeBlurStyle
-import dev.chrisbanes.haze.blur.HazeColorEffect
-import dev.chrisbanes.haze.blur.hazeBlur
 import dev.chrisbanes.haze.hazeSource
+import io.github.triptu.notes.ui.glass
 import dev.chrisbanes.haze.rememberHazeState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -379,24 +374,12 @@ private fun RowMenu(open: Boolean, items: () -> List<MenuEntry>, onClose: () -> 
 @Composable
 private fun SearchField(query: String, onQuery: (String) -> Unit, haze: HazeState, modifier: Modifier = Modifier) {
     val colors = NotesTheme.colors
-    val dark = isSystemInDarkTheme()
-    val shape = RoundedCornerShape(24.dp)
-    val blur = remember(colors) {
-        HazeBlurStyle {
-            blurRadius(24.dp)
-            backgroundColor(colors.bg)
-            colorEffects(listOf(HazeColorEffect.tint(colors.raised.copy(alpha = 0.82f))))
-            noiseFactor(0f)
-        }
-    }
     Row(
         modifier
             .padding(horizontal = PagePadding)
             .fillMaxWidth()
             .height(SearchHeight)
-            .clip(shape)
-            .hazeBlur(HazeInput.Sources(haze), blur)
-            .then(if (dark) Modifier.border(1.dp, Color.White.copy(alpha = 0.07f), shape) else Modifier)
+            .glass(haze, RoundedCornerShape(24.dp))
             .padding(start = 18.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
