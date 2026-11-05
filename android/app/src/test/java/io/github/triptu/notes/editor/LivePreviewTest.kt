@@ -32,4 +32,18 @@ class LivePreviewTest {
         assertEquals(false, markerShown(TextRange(0, 20)))
         assertEquals(false, markerShown(TextRange(20, 5)))
     }
+
+    private fun drawn(text: String): String =
+        LivePreview(MarkdownParser.parse(text), TextRange(text.length), focused = false, colors = LightColors, measure = { 0.sp })
+            .filter(AnnotatedString(text)).text.text
+
+    @Test
+    fun `a list marker can't be wrapped apart from a long link after it`() {
+        val link = "https://github.com/triptu/notes/blob/main/android/app/src/main/java/io/github/triptu/notes/editor/LivePreview.kt"
+        for (marker in listOf("- ", "- [ ] ", "- [x] ", "1. ")) {
+            val shown = drawn(marker + link)
+            assertEquals(marker, false, shown.substring(0, marker.length).contains(' '))
+            assertEquals(marker, link, shown.substring(marker.length))
+        }
+    }
 }

@@ -54,6 +54,11 @@ class LivePreview(
             for (i in lineStart until textStart) if (chars[i] == '\t') chars[i] = EmSpace
             return ParagraphStyle(textIndent = TextIndent(restLine = measure(String(chars, lineStart, textStart - lineStart))))
         }
+        // A list marker stays on the line with the text after it. Otherwise a word too long for the
+        // rest of the line, such as a link, wraps whole and leaves the marker alone on its line.
+        fun keepWithText(start: Int, end: Int) {
+            for (i in start until end.coerceAtMost(chars.size)) if (chars[i] == ' ') chars[i] = NoBreakSpace
+        }
 
         parsed.frontmatter?.let { span(SpanStyle(color = colors.muted, fontSize = 14.sp), it.start, it.end) }
 
@@ -71,6 +76,7 @@ class LivePreview(
                 chars[t.stateIndex] = ' '
                 span(SpanStyle(color = Color.Transparent), t.markerStart, t.markerEnd)
             }
+            keepWithText(t.markerStart, t.markerEnd)
             if (t.checked) span(SpanStyle(color = colors.muted, textDecoration = TextDecoration.LineThrough), t.markerEnd, t.lineEnd)
             val lineStart = lineStartOf(raw, t.markerStart)
             paragraph(hangingIndent(lineStart, t.markerEnd), lineStart, t.lineEnd)
@@ -79,10 +85,12 @@ class LivePreview(
             val lineStart = lineStartOf(raw, bullet.index)
             if (!touches(bullet.index, bullet.index + 1)) chars[bullet.index] = BulletShapes[nesting(raw, lineStart, bullet.index) % BulletShapes.size]
             span(SpanStyle(color = colors.muted), bullet.index, bullet.index + 1)
+            keepWithText(bullet.index + 1, bullet.index + 2)
             paragraph(hangingIndent(lineStart, (bullet.index + 2).coerceAtMost(bullet.lineEnd)), lineStart, bullet.lineEnd)
         }
         for (n in parsed.numbers) {
             span(SpanStyle(color = colors.muted), n.start, n.markerEnd)
+            keepWithText(n.start, n.markerEnd)
             val lineStart = lineStartOf(raw, n.start)
             paragraph(hangingIndent(lineStart, n.markerEnd), lineStart, n.lineEnd)
         }
@@ -176,6 +184,7 @@ class LivePreview(
         private val Hidden = SpanStyle(color = Color.Transparent, fontSize = 1.sp, letterSpacing = 0.sp)
         private const val ZeroWidthSpace = '\u200B'
         private const val EmSpace = '\u2003'
+        private const val NoBreakSpace = '\u00A0'
 
         /** Like Notion: a dot, then a ring one level in, then a square, then round again. */
         private val BulletShapes = charArrayOf('•', '◦', '▪')
