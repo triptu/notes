@@ -136,6 +136,7 @@ class LivePreview(
             }
         }
         for (u in parsed.urls) {
+            breakableLink(chars, u.labelStart, u.labelEnd)
             span(SpanStyle(textDecoration = TextDecoration.Underline), u.labelStart, u.labelEnd)
             if (touches(u.start, u.end)) {
                 span(SpanStyle(color = colors.muted), u.start, u.labelStart)
@@ -154,6 +155,19 @@ class LivePreview(
         for ((style, lineStart, lineEnd) in paragraphs) b.addStyle(style, lineStart, (lineEnd + 1).coerceAtMost(chars.size))
         spans.forEach { (style, s, e) -> b.addStyle(style, s, e) }
         return TransformedText(b.toAnnotatedString(), OffsetMapping.Identity)
+    }
+
+    /**
+     * Android's line breaker treats a run like `https://…` as one word that wraps whole to the next
+     * line, so a long link after other words leaves the rest of its line empty. Its URL check reads
+     * only ASCII, so drawing the scheme's `p` as the Cyrillic `р` (the same glyph in Inter) lets the
+     * link wrap after its slashes and hyphens like any other text.
+     */
+    private fun breakableLink(chars: CharArray, start: Int, end: Int) {
+        val scheme = String(chars, start, end - start).indexOf("://")
+        if (scheme < 0) return
+        val p = (start until start + scheme).firstOrNull { chars[it] == 'p' } ?: return
+        chars[p] = CyrillicEr
     }
 
     private fun lineStartOf(text: String, index: Int) = text.lastIndexOf('\n', index - 1) + 1
@@ -185,6 +199,7 @@ class LivePreview(
         private const val ZeroWidthSpace = '\u200B'
         private const val EmSpace = '\u2003'
         private const val NoBreakSpace = '\u00A0'
+        private const val CyrillicEr = '\u0440'
 
         /** Like Notion: a dot, then a ring one level in, then a square, then round again. */
         private val BulletShapes = charArrayOf('•', '◦', '▪')

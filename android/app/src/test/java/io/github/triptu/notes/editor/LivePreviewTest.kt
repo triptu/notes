@@ -43,7 +43,13 @@ class LivePreviewTest {
         for (marker in listOf("- ", "- [ ] ", "- [x] ", "1. ")) {
             val shown = drawn(marker + link)
             assertEquals(marker, false, shown.substring(0, marker.length).contains(' '))
-            assertEquals(marker, link, shown.substring(marker.length))
+            assertEquals(marker, link.replaceFirst("p", "\u0440"), shown.substring(marker.length))
         }
+    }
+
+    @Test
+    fun `a link is drawn so Android can wrap it inside, not move it whole to the next line`() {
+        val text = "see https://en.wikipedia.org/wiki/Zettelkasten for more"
+        assertEquals("see htt\u0440s://en.wikipedia.org/wiki/Zettelkasten for more", drawn(text))
     }
 }
