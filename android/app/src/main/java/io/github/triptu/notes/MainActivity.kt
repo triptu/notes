@@ -3,6 +3,7 @@ package io.github.triptu.notes
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.view.ActionMode
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -21,6 +22,14 @@ class MainActivity : ComponentActivity() {
 
     /** Debug builds: `am start ... --es theme light|dark` draws the app in that theme, for screenshots. */
     private var forcedDark by mutableStateOf<Boolean?>(null)
+
+    /**
+     * The text toolbar (Cut, Copy, ...) is up. It's Android's floating action mode, so only the
+     * activity hears it come and go. A text field takes it down while a finger holds a selection
+     * handle and puts it back on release, which is how the editor knows a drag is on.
+     */
+    var textToolbarShown by mutableStateOf(false)
+        private set
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -50,6 +59,16 @@ class MainActivity : ComponentActivity() {
         forcedDark = dark
         val bars = if (dark) SystemBarStyle.dark(Color.TRANSPARENT) else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
         enableEdgeToEdge(bars, bars)
+    }
+
+    override fun onActionModeStarted(mode: ActionMode) {
+        super.onActionModeStarted(mode)
+        if (mode.type == ActionMode.TYPE_FLOATING) textToolbarShown = true
+    }
+
+    override fun onActionModeFinished(mode: ActionMode) {
+        super.onActionModeFinished(mode)
+        if (mode.type == ActionMode.TYPE_FLOATING) textToolbarShown = false
     }
 
     override fun onStart() {

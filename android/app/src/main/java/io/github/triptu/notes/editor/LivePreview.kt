@@ -29,7 +29,7 @@ import io.github.triptu.notes.ui.theme.NotesColors
 class LivePreview(
     private val parsed: ParsedMarkdown,
     private val selection: TextRange,
-    /** Markup shows around the cursor only while the field has focus. */
+    /** Markup shows around the cursor only while the field has focus, and never for a selection. */
     private val focused: Boolean,
     private val colors: NotesColors,
     /** Width of a line's leading markup as drawn, for the hanging indent of wrapped lines. */
@@ -158,8 +158,12 @@ class LivePreview(
         return tabs + spaces / 2
     }
 
-    /** True if the cursor or selection touches [start]..[end], edges included. */
-    private fun touches(start: Int, end: Int): Boolean = focused && selection.min <= end && selection.max >= start
+    /**
+     * True if the cursor is in [start]..[end], edges included. A selection reveals nothing: the
+     * text under a dragged handle must stay still, or the field drops the handle (its popup leaves
+     * the composition while the layout is stale).
+     */
+    private fun touches(start: Int, end: Int): Boolean = focused && selection.collapsed && selection.start in start..end
 
     override fun equals(other: Any?): Boolean =
         other is LivePreview && other.parsed == parsed && other.selection == selection && other.focused == focused && other.colors == colors &&

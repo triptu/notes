@@ -11,6 +11,12 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.activity.compose.LocalActivity
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalInputModeManager
+import io.github.triptu.notes.MainActivity
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.CompositionLocalProvider
@@ -83,7 +89,6 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.relocation.BringIntoViewModifierNode
-import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
@@ -108,6 +113,8 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -155,6 +162,7 @@ fun EditorScreen(
     LaunchedEffect(session.keyboardRequests) { if (session.keyboardRequests > 0) bodyFocus.requestFocus() }
 
     val scroll = rememberScrollState()
+    var viewportTop by remember { mutableFloatStateOf(0f) }
     // The note, blurred behind the floating typing buttons.
     val haze = rememberHazeState()
 
@@ -187,7 +195,7 @@ fun EditorScreen(
         val defaultSpec = LocalBringIntoViewSpec.current
         CompositionLocalProvider(LocalBringIntoViewSpec provides keepClear) {
             Column(
-                Modifier.fillMaxSize().hazeSource(haze).verticalScroll(scroll).padding(top = TopBarHeight),
+                Modifier.fillMaxSize().onGloballyPositioned { viewportTop = it.positionInRoot().y }.hazeSource(haze).verticalScroll(scroll).padding(top = TopBarHeight),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 // Only the page keeps clear. The text field's own scroller can't move, so it would
@@ -195,7 +203,7 @@ fun EditorScreen(
                 CompositionLocalProvider(LocalBringIntoViewSpec provides defaultSpec) {
                     Column(Modifier.widthIn(max = ReadingWidth).fillMaxWidth().padding(horizontal = PagePadding)) {
                         Title(session, onDone = { bodyFocus.requestFocus() })
-                        if (session.loaded) Body(session, bodyFocus, onOpenLink, scroll, images)
+                        if (session.loaded) Body(session, bodyFocus, onOpenLink, scroll, viewportTop, keepClear, images)
                     }
                 }
                 // Tapping the empty space under the text puts the cursor at the end. It is taller
@@ -266,7 +274,7 @@ private val RowMargin = 8.dp
 
 /** Scrolls just enough to show the cursor, keeping [topMargin] and [bottomMargin] px clear. */
 @OptIn(ExperimentalFoundationApi::class)
-private class KeepClearBringIntoView(private val topMargin: Float, private val bottomMargin: Float) : BringIntoViewSpec {
+private class KeepClearBringIntoView(val topMargin: Float, val bottomMargin: Float) : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
         val above = offset - topMargin
         val below = offset + size - (containerSize - bottomMargin)
@@ -405,7 +413,16 @@ private fun Title(session: EditorSession, onDone: () -> Unit) {
 }
 
 @Composable
-private fun Body(session: EditorSession, focus: FocusRequester, onOpenLink: (String) -> Unit, scroll: ScrollState, images: NoteImages?) {
+private fun Body(
+    session: EditorSession,
+    focus: FocusRequester,
+    onOpenLink: (String) -> Unit,
+    scroll: ScrollState,
+    /** The scrolling page's top in root coordinates. */
+    viewportTop: Float,
+    keepClear: KeepClearBringIntoView,
+    images: NoteImages?,
+) {
     val colors = NotesTheme.colors
     val density = LocalDensity.current
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
@@ -436,7 +453,8 @@ private fun Body(session: EditorSession, focus: FocusRequester, onOpenLink: (Str
         return Offset(x, centerY - boxSide / 2f)
     }
 
-    fun revealed(task: TaskMark) = focused && current.selection.min <= task.markerEnd - 1 && current.selection.max >= task.markerStart
+    // Mirrors LivePreview: the marker shows under the cursor, never under a selection.
+    fun revealed(task: TaskMark) = focused && current.selection.collapsed && current.selection.start in task.markerStart..(task.markerEnd - 1)
 
     // Embedded pictures: loaded once per target, drawn in the space their line reserves.
     val pictures = remember(session) { mutableStateMapOf<String, ImageState>() }
@@ -473,6 +491,7 @@ private fun Body(session: EditorSession, focus: FocusRequester, onOpenLink: (Str
     val imageSpace = boxes.mapValues { (_, box) -> with(density) { (box.second.height + gap * 2).toSp() } }
     val labelStyle = NotesType.rowMeta.copy(color = colors.muted)
 
+    /** The field's top within the page's scrolling content, so page = field + this - scroll. */
     var fieldTopInContent by remember { mutableStateOf(0) }
     // Opened from a Recents card: scroll so that card's text sits near the top.
     val revealAt = session.revealAt
@@ -484,26 +503,79 @@ private fun Body(session: EditorSession, focus: FocusRequester, onOpenLink: (Str
         scroll.scrollTo((fieldTopInContent + revealLayout.getLineTop(line).toInt() - revealMargin).coerceAtLeast(0))
         session.revealDone()
     }
+    // A finger on a selection handle. The field takes the text toolbar down when a handle is
+    // held and puts it back on release, so the toolbar says when a drag is on. A hardware
+    // keyboard moves one end too, with no toolbar to say when it's done.
+    val toolbarShown = (LocalActivity.current as? MainActivity)?.textToolbarShown ?: false
+    val touching = LocalInputModeManager.current.inputMode == InputMode.Touch
+    var drag by remember { mutableStateOf<HandleDrag?>(null) }
+    LaunchedEffect(toolbarShown, focused) { if (toolbarShown || !focused) drag = null }
+    val edgeZone = with(density) { EdgeScrollZone.toPx() }
+    val edgeSpeed = with(density) { EdgeScrollSpeed.toPx() }
+    // Near the top or bottom, the page scrolls under the finger and the selection grows to the
+    // text that arrives there. The finger alone can't do it: the field only moves the handle by
+    // the finger's travel.
+    LaunchedEffect(drag) {
+        val d = drag ?: return@LaunchedEffect
+        var last = withFrameNanos { it }
+        while (true) {
+            val now = withFrameNanos { it }
+            val seconds = (now - last) / 1e9f
+            last = now
+            // The finger let go without the toolbar coming back, such as when the selection was lost.
+            if (current.selection.collapsed) { drag = null; break }
+            val speed = edgeScrollSpeed(d.finger.y, scroll.viewportSize.toFloat(), keepClear.topMargin, keepClear.bottomMargin, edgeZone, edgeSpeed)
+            if (speed == 0f || scroll.scrollBy(speed * seconds) == 0f) continue
+            val l = layout ?: continue
+            val offset = l.getOffsetForPosition(Offset(d.finger.x, d.finger.y + scroll.value - fieldTopInContent))
+            val selection = current.selection
+            if (offset == selection.at(d.end) || offset == selection.at(d.end.other)) continue
+            session.onValueChange(current.copy(selection = selection.withEnd(d.end, offset)))
+        }
+    }
     // The text field scrolls to the selection it had when it took focus, which for a note just
     // opened is its start, so a tap at the end jumped to the top. Its own requests stop at
-    // [IgnoreBringIntoView]; the editor follows the real cursor instead, also as the keyboard opens.
+    // [IgnoreBringIntoView]; the editor follows the real cursor instead, also as the keyboard
+    // opens. With a selection, it follows the end that moved. A drag scrolls for itself.
     val cursorInView = remember { BringIntoViewRequester() }
+    var followed by remember { mutableStateOf(session.value.selection) }
     LaunchedEffect(focused, session.value.selection, layout, scroll.viewportSize) {
         val l = layout ?: return@LaunchedEffect
-        if (!focused) return@LaunchedEffect
-        cursorInView.bringIntoView(l.getCursorRect(session.value.selection.end.coerceIn(0, l.layoutInput.text.length)))
+        val selection = session.value.selection
+        val moved = draggedEnd(followed, selection) ?: DraggedEnd.End
+        followed = selection
+        if (!focused || drag != null) return@LaunchedEffect
+        cursorInView.bringIntoView(l.getCursorRect(selection.at(moved).coerceIn(0, l.layoutInput.text.length)))
+    }
+    fun onValueChange(typed: TextFieldValue) {
+        val l = layout
+        val moved = if (l != null && touching && !toolbarShown && typed.text == current.text) draggedEnd(current.selection, typed.selection) else null
+        if (l == null || moved == null) {
+            // Typing, a collapsed cursor, or a new selection ends any drag.
+            if (typed.text != current.text || typed.selection != current.selection) drag = null
+            session.onTyped(typed)
+            return
+        }
+        val d = drag?.takeIf { it.end == moved } ?: HandleDrag(moved, scroll.value).also { drag = it }
+        // The field put the handle where the finger would be had the page not scrolled.
+        val handle = l.getCursorRect(typed.selection.at(moved).coerceIn(0, l.layoutInput.text.length))
+        val finger = Offset(handle.left, handle.center.y + (scroll.value - d.scrollAtStart))
+        d.finger = Offset(finger.x, finger.y + fieldTopInContent - scroll.value)
+        val offset = l.getOffsetForPosition(finger)
+        val selection = if (offset == typed.selection.at(moved.other)) typed.selection else typed.selection.withEnd(moved, offset)
+        session.onTyped(typed.copy(selection = selection))
     }
     Box(
         Modifier
             .onGloballyPositioned {
-                fieldTopInContent = it.positionInParent().y.toInt()
+                fieldTopInContent = (it.positionInRoot().y - viewportTop + scroll.value).toInt()
             }
             .bringIntoViewRequester(cursorInView)
             .then(IgnoreBringIntoView),
     ) {
     BasicTextField(
         value = session.value,
-        onValueChange = session::onTyped,
+        onValueChange = ::onValueChange,
         textStyle = NotesType.noteBody.copy(color = colors.ink),
         cursorBrush = SolidColor(colors.ink),
         visualTransformation = LivePreview(session.parsed, session.value.selection, focused, colors, indentOf, imageSpace),
@@ -587,6 +659,12 @@ private fun Body(session: EditorSession, focus: FocusRequester, onOpenLink: (Str
     )
     }
 }
+
+/** From the bars' clear margins inward, where a dragged handle scrolls the page. */
+private val EdgeScrollZone = 56.dp
+
+/** The most a dragged handle scrolls the page, per second. */
+private val EdgeScrollSpeed = 640.dp
 
 private object IgnoreBringIntoView : ModifierNodeElement<IgnoreBringIntoView.Node>() {
     class Node : Modifier.Node(), BringIntoViewModifierNode {
