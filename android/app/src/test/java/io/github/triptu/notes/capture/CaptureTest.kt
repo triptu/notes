@@ -121,6 +121,7 @@ class NewNoteTemplateTest {
 
     private val startedAt = LocalDateTime.of(2026, 10, 28, 9, 41)
     private val template = "---\ndate:\ntags:\n  - fleeting\n---\n"
+    private val dated = "---\ndate: 2026-10-28\ntags:\n  - fleeting\n---\n"
 
     private fun capture(settings: CaptureSettings = CaptureSettings()): Pair<File, CaptureService> {
         val root = temp.newFolder()
@@ -130,14 +131,14 @@ class NewNoteTemplateTest {
     private fun File.writeNote(path: String, text: String) = File(this, path).apply { parentFile!!.mkdirs() }.writeText(text)
 
     @Test
-    fun `a new note starts with the template and is named from the words below it`() = runTest {
+    fun `a new note starts with the template dated today and is named from the words below it`() = runTest {
         val (root, capture) = capture()
         root.writeNote("templates/Zettelkasten Template.md", template)
-        assertEquals(template, capture.newNoteStart(startedAt))
+        assertEquals(dated, capture.newNoteStart(startedAt))
 
         val path = capture.createNewNote(FolderPath("Zettelkasten"), "Rivers carve slowly", startedAt)
         assertEquals("Zettelkasten/2026102809 Rivers carve slowly.md", path?.value)
-        assertEquals(template + "Rivers carve slowly", File(root, path!!.value).readText())
+        assertEquals(dated + "Rivers carve slowly", File(root, path!!.value).readText())
     }
 
     @Test
@@ -145,6 +146,17 @@ class NewNoteTemplateTest {
         val (root, capture) = capture()
         root.writeNote("templates/Zettelkasten Template.md", "---\ntags: []\n---")
         assertEquals("---\ntags: []\n---\n", capture.newNoteStart(startedAt))
+    }
+
+    @Test
+    fun `only an empty date key in the frontmatter is filled`() {
+        val at = LocalDateTime.of(2026, 10, 28, 9, 41)
+        assertEquals("---\ndate: 2026-01-02\n---\ndate:\n", NoteTemplate.dated("---\ndate: 2026-01-02\n---\ndate:\n", at))
+        assertEquals("---\ntags: []\ndate: 2026-10-28\n---\n", NoteTemplate.dated("---\ntags: []\ndate:  \n---\n", at))
+        assertEquals("date:\n", NoteTemplate.dated("date:\n", at))
+        assertEquals("---\r\ndate: 2026-10-28\r\n---\r\n", NoteTemplate.dated("---\r\ndate:\r\n---\r\n", at))
+        assertEquals("---\n---label: x\ndate: 2026-10-28\n---\n", NoteTemplate.dated("---\n---label: x\ndate:\n---\n", at))
+        assertEquals("---\ndate:\n", NoteTemplate.dated("---\ndate:\n", at))
     }
 
     @Test

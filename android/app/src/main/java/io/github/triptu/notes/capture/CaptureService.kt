@@ -15,12 +15,12 @@ class CaptureService(
     val newNoteFolder: FolderPath get() = FolderPath(settings().newNoteFolder.trim('/'))
 
     /**
-     * How a new note started at [startedAt] begins: the new-note template, filled, ending in a line
+     * How a new note started at [startedAt] begins: the new-note template, filled, with an empty `date:` set to that day, ending in a line
      * break so the note's text starts below it. Empty without a template or when its note is missing.
      */
     suspend fun newNoteStart(startedAt: LocalDateTime): String {
         val template = readTemplate(settings().newNoteTemplate) ?: return ""
-        val filled = NoteTemplate.fill(template, ZettelName.stamp(startedAt), startedAt)
+        val filled = NoteTemplate.dated(NoteTemplate.fill(template, ZettelName.stamp(startedAt), startedAt), startedAt)
         return if (filled.isEmpty() || filled.endsWith('\n')) filled else "$filled\n"
     }
 

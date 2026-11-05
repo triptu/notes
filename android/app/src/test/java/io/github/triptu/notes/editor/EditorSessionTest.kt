@@ -104,7 +104,7 @@ class NewNoteTest {
     }
 
     @Test
-    fun `a new note opens below its template, is named by the words under it, and leaves no file when left blank`() = runTest {
+    fun `a new note opens below its template dated today, is named by the words under it, and leaves no file when left blank`() = runTest {
         val root = temp.newFolder("vault")
         val template = "---\ndate:\ntags:\n  - fleeting\n---\n"
         File(root, "templates").mkdirs()
@@ -117,18 +117,19 @@ class NewNoteTest {
             CaptureService(store) { CaptureSettings() }, scope, now = { LocalDateTime.of(2026, 10, 28, 9, 41) },
         )
         advanceUntilIdle()
-        assertEquals(template, session.value.text)
-        assertEquals(TextRange(template.length), session.value.selection)
-        assertEquals(template.length - 1, session.parsed.frontmatter?.end)
+        val start = template.replace("date:\n", "date: 2026-10-28\n")
+        assertEquals(start, session.value.text)
+        assertEquals(TextRange(start.length), session.value.selection)
+        assertEquals(start.length - 1, session.parsed.frontmatter?.end)
 
-        session.onValueChange(TextFieldValue(template + "Rivers carve", TextRange(template.length + 12)))
+        session.onValueChange(TextFieldValue(start + "Rivers carve", TextRange(start.length + 12)))
         advanceUntilIdle()
         assertEquals("Rivers carve", session.title)
-        session.onValueChange(TextFieldValue(template + "Rivers carve slowly", TextRange(template.length + 19)))
+        session.onValueChange(TextFieldValue(start + "Rivers carve slowly", TextRange(start.length + 19)))
         advanceUntilIdle()
         assertEquals(listOf("2026102809 Rivers carve slowly.md"), File(root, "Zettelkasten").list()!!.toList())
 
-        session.onValueChange(TextFieldValue(template, TextRange(template.length)))
+        session.onValueChange(TextFieldValue(start, TextRange(start.length)))
         session.close(CoroutineScope(Dispatchers.Unconfined))
         advanceUntilIdle()
         assertEquals(emptyList<String>(), File(root, "Zettelkasten").list().orEmpty().toList())

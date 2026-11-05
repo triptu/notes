@@ -47,6 +47,16 @@ object NoteTemplate {
             MomentFormat.format(m.groupValues[2].trim(), date.with(ChronoField.DAY_OF_WEEK, day.value.toLong()))
         }
 
+    private val Frontmatter = Regex("""\A---[ \t]*\r?\n(?:.*\r?\n)*?---[ \t]*(?:\r?\n|\z)""")
+    private val EmptyDate = Regex("""^date:[ \t]*$""", RegexOption.MULTILINE)
+
+    /** Gives an empty `date:` key in [text]'s leading frontmatter [date], formatted with [dateFormat]. */
+    fun dated(text: String, date: LocalDateTime, dateFormat: String = "YYYY-MM-DD"): String {
+        val frontmatter = Frontmatter.find(text) ?: return text
+        val filled = frontmatter.value.replaceFirst(EmptyDate, "date: ${MomentFormat.format(dateFormat, date)}")
+        return filled + text.substring(frontmatter.range.last + 1)
+    }
+
     /** moment's `add(amount, unit)` for its one-letter units. Case matters only for M (month) and m (minute). */
     private fun shift(at: LocalDateTime, amount: Long, unit: String): LocalDateTime? = when (unit) {
         "M" -> at.plusMonths(amount)
