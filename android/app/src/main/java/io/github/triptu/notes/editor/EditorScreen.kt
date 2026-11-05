@@ -5,7 +5,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
@@ -52,6 +55,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -229,7 +233,7 @@ fun EditorScreen(
         ) {
             TopBar(session, isPinned, list, onBack, onTogglePin, onDelete)
         }
-        // While typing, the mic joins a row of buttons above the keyboard.
+        // While typing, the mic folds into one button above the keyboard, with the other typing buttons.
         AnimatedVisibility(
             visible = typing && !linking,
             enter = fadeIn(tween(120)),
@@ -290,21 +294,57 @@ private class KeepClearBringIntoView(val topMargin: Float, val bottomMargin: Flo
 }
 
 /**
- * Buttons for what the keyboard can't do, kept to the right so they never cover where lines start:
- * undo and redo when there's something to undo or redo, then outdent, indent, checkbox, and speak.
+ * Buttons for what the keyboard can't do, folded into one button at the bottom right so they don't
+ * cover the text. It opens them in a row to its left: undo and redo when there's something to undo
+ * or redo, then outdent, indent, checkbox, and speak. Any of them closes the row again.
  */
 @Composable
 private fun TypingButtons(session: EditorSession, onSpeak: (() -> Unit)?, haze: HazeState, modifier: Modifier = Modifier) {
+    var open by remember { mutableStateOf(false) }
+    fun act(action: () -> Unit): () -> Unit = { open = false; action() }
     Row(
-        modifier.fillMaxWidth().padding(horizontal = PagePadding - 4.dp, vertical = RowMargin),
-        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+        modifier.fillMaxWidth().padding(horizontal = PagePadding - 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp - RowMargin, Alignment.End),
     ) {
-        if (session.canUndo) RoundButton(R.drawable.ph_arrow_u_up_left, "Undo", haze, session::undo)
-        if (session.canRedo) RoundButton(R.drawable.ph_arrow_u_up_right, "Redo", haze, session::redo)
-        RoundButton(R.drawable.ph_text_outdent, "Outdent", haze, session::outdent)
-        RoundButton(R.drawable.ph_text_indent, "Indent", haze, session::indent)
-        RoundButton(R.drawable.ph_check_square, "Checkbox", haze, session::toggleChecklist)
-        if (onSpeak != null) RoundButton(R.drawable.ph_microphone, "Speak", haze, onSpeak)
+        // The toggle keeps its size. On a narrow phone the row scrolls instead, starting at the
+        // buttons nearest the toggle; its padding leaves room for the shadows it clips.
+        AnimatedVisibility(
+            visible = open,
+            modifier = Modifier.weight(1f, fill = false),
+            enter = fadeIn(tween(140)) + slideInHorizontally(tween(160)) { it / 4 },
+            exit = fadeOut(tween(100)) + slideOutHorizontally(tween(120)) { it / 4 },
+        ) {
+            Row(
+                Modifier.horizontalScroll(rememberScrollState(Int.MAX_VALUE)).padding(RowMargin),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (session.canRedo) RoundButton(R.drawable.ph_arrow_u_up_right, "Redo", haze, act(session::redo))
+                if (session.canUndo) RoundButton(R.drawable.ph_arrow_u_up_left, "Undo", haze, act(session::undo))
+                RoundButton(R.drawable.ph_text_outdent, "Outdent", haze, act(session::outdent))
+                RoundButton(R.drawable.ph_text_indent, "Indent", haze, act(session::indent))
+                RoundButton(R.drawable.ph_check_square, "Checkbox", haze, act(session::toggleChecklist))
+                if (onSpeak != null) RoundButton(R.drawable.ph_microphone, "Speak", haze, act(onSpeak))
+            }
+        }
+        TypingToggle(open, Modifier.padding(vertical = RowMargin)) { open = !open }
+    }
+}
+
+/** Opens and closes the typing buttons: three dots, an X while they show. */
+@Composable
+private fun TypingToggle(open: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val colors = NotesTheme.colors
+    val label = if (open) "Close typing buttons" else "Typing buttons"
+    Box(
+        modifier
+            .size(RowButtonSize)
+            .shadow(6.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.18f), spotColor = Color.Black.copy(alpha = 0.18f))
+            .background(colors.solid.copy(alpha = 0.88f), CircleShape)
+            .pressable(onClick, shape = CircleShape, bleed = 0.dp, label = label, pressColor = colors.ink2),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (open) PhIcon(R.drawable.ph_x, label, 20.dp, colors.onSolid)
+        else PhIcon(R.drawable.ph_dots_three_vertical, label, 20.dp, colors.onSolid, Modifier.rotate(90f))
     }
 }
 
